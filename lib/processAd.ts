@@ -8,14 +8,22 @@ export function processAd(
   campaignMap: Record<string, string>,
   recentSpendById: Record<string, number>,
   hashToUrl: Record<string, string>,
+  videoThumbMap: Record<string, string>,
 ): ProcessedAd {
   const insights = ad.insights?.data?.[0] ?? {};
   const recentSpend = recentSpendById[ad.id] ?? 0;
   const creative = ad.creative ?? {};
 
-  const imageHash = creative.image_hash || creative.object_story_spec?.link_data?.image_hash;
+  const imageHash =
+    creative.image_hash ||
+    creative.object_story_spec?.link_data?.image_hash ||
+    creative.asset_feed_spec?.images?.[0]?.hash;
   let thumbnail: string | null =
-    (imageHash && hashToUrl[imageHash]) || creative.image_url || creative.thumbnail_url || null;
+    (imageHash && hashToUrl[imageHash]) ||
+    (creative.video_id && videoThumbMap[creative.video_id]) ||
+    creative.image_url ||
+    creative.thumbnail_url ||
+    null;
   if (!thumbnail && creative.object_story_spec) {
     thumbnail = creative.object_story_spec.link_data?.picture || null;
   }

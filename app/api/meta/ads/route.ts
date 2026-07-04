@@ -8,9 +8,8 @@ export const dynamic = 'force-dynamic';
 const ALLOWED_DAYS = new Set(['7', '14', '30']);
 const MAX_ADS = 200;
 const MAX_PAGES = 5; // safety cap on page fetches while walking toward MAX_ADS
-const MIN_CREATED_TIME = '2026-01-01'; // only pull ads created on/after this date
 const THUMBNAIL_SIZE = '1080'; // request larger creative thumbnails than Meta's small default
-const BATCH_SIZE = 50; // chunk size for campaign/insights/image-hash batch lookups
+const BATCH_SIZE = 50; // chunk size for campaign/insights/image-hash/video batch lookups
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -46,7 +45,6 @@ export async function GET(req: NextRequest) {
   }
 
   const effectiveStatus = status === 'ACTIVE' ? '["ACTIVE"]' : '["ACTIVE","PAUSED","ARCHIVED"]';
-  const filtering = JSON.stringify([{ field: 'created_time', operator: 'GREATER_THAN', value: MIN_CREATED_TIME }]);
 
   const fields = [
     'id',
@@ -57,7 +55,7 @@ export async function GET(req: NextRequest) {
     'campaign_id',
     'creative{id,name,title,body,image_url,thumbnail_url,image_hash,video_id,call_to_action_type,' +
       'object_story_spec{link_data{picture,image_hash,message,name,child_attachments{link}},photo_data{caption}},' +
-      'asset_feed_spec{videos{video_id}}}',
+      'asset_feed_spec{videos{video_id},images{hash}}}',
     `insights.date_preset(last_${days}d){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,cost_per_action_type}`,
   ].join(',');
 
@@ -66,7 +64,6 @@ export async function GET(req: NextRequest) {
       fields,
       limit: '100',
       effective_status: effectiveStatus,
-      filtering,
       thumbnail_width: THUMBNAIL_SIZE,
       thumbnail_height: THUMBNAIL_SIZE,
       access_token: token,
@@ -91,6 +88,38 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ads: [] }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
+    // Drop ads with zero spend in the trailing 90 days, regardless of creation
+    // date, so stale/dormant ads never show up. Fails open: if the lookup
+    // itself errors for a batch, those ads are kept rather than silently
+    // dropped (we don't want a transient API hiccup to empty the results).
+    const adIds = ads.map((a) => a.id);
+    const spend90ById: Record<string, number> = {};
+    const spend90Unknown = new Set<string>();
+    for (const idBatch of chunk(adIds, BATCH_SIZE)) {
+      try {
+        const url90 = buildUrl(`/${accountId}/insights`, {
+          level: 'ad',
+          date_preset: 'last_90d',
+          fields: 'ad_id,spend',
+          filtering: JSON.stringify([{ field: 'ad.id', operator: 'IN', value: idBatch }]),
+          limit: String(BATCH_SIZE),
+          access_token: token,
+        });
+        const data90 = await fetchGraph<{ data: { ad_id: string; spend?: string }[] }>(url90);
+        idBatch.forEach((id) => (spend90ById[id] = 0));
+        for (const row of data90.data || []) {
+          spend90ById[row.ad_id] = parseFloat(row.spend || '0');
+        }
+      } catch {
+        idBatch.forEach((id) => spend90Unknown.add(id));
+      }
+    }
+    ads = ads.filter((a) => spend90Unknown.has(a.id) || (spend90ById[a.id] ?? 0) > 0);
+
+    if (ads.length === 0) {
+      return NextResponse.json({ ads: [] }, { headers: { 'Cache-Control': 'no-store' } });
+    }
+
     // Campaign name enrichment (best-effort)
     const campaignIds = [...new Set(ads.map((a) => a.campaign_id).filter((id): id is string => Boolean(id)))];
     let campaignMap: Record<string, string> = {};
@@ -109,11 +138,9 @@ export async function GET(req: NextRequest) {
     }
 
     // "Inactive" detection: ads Meta reports ACTIVE but with zero spend yesterday.
-    // Done as its own dedicated insights query (rather than a second aliased
-    // insights block on /ads, which Meta silently drops) filtered to this ad set.
     const recentSpendById: Record<string, number> = {};
-    const adIds = ads.map((a) => a.id);
-    for (const idBatch of chunk(adIds, BATCH_SIZE)) {
+    const remainingIds = ads.map((a) => a.id);
+    for (const idBatch of chunk(remainingIds, BATCH_SIZE)) {
       try {
         const recentUrl = buildUrl(`/${accountId}/insights`, {
           level: 'ad',
@@ -138,7 +165,12 @@ export async function GET(req: NextRequest) {
     const hashes = [
       ...new Set(
         ads
-          .map((a) => a.creative?.image_hash || a.creative?.object_story_spec?.link_data?.image_hash)
+          .map(
+            (a) =>
+              a.creative?.image_hash ||
+              a.creative?.object_story_spec?.link_data?.image_hash ||
+              a.creative?.asset_feed_spec?.images?.[0]?.hash,
+          )
           .filter((h): h is string => Boolean(h)),
       ),
     ];
@@ -159,8 +191,33 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // High-res video thumbnails: Meta's video object exposes a range of
+    // generated thumbnails at different resolutions; pick the largest instead
+    // of the small default thumbnail_url.
+    const videoIds = [...new Set(ads.map((a) => a.creative?.video_id).filter((v): v is string => Boolean(v)))];
+    const videoThumbMap: Record<string, string> = {};
+    for (const videoBatch of chunk(videoIds, BATCH_SIZE)) {
+      try {
+        const videosUrl = buildUrl('/', {
+          ids: videoBatch.join(','),
+          fields: 'thumbnails{uri,width}',
+          access_token: token,
+        });
+        const videosData =
+          await fetchGraph<Record<string, { thumbnails?: { data?: { uri: string; width?: number }[] } }>>(videosUrl);
+        for (const [id, obj] of Object.entries(videosData)) {
+          const candidates = obj.thumbnails?.data || [];
+          if (!candidates.length) continue;
+          const best = candidates.reduce((a, b) => ((b.width || 0) > (a.width || 0) ? b : a));
+          if (best.uri) videoThumbMap[id] = best.uri;
+        }
+      } catch {
+        // best-effort; falls back to creative.thumbnail_url
+      }
+    }
+
     const processed = ads
-      .map((ad) => processAd(ad, campaignMap, recentSpendById, hashToUrl))
+      .map((ad) => processAd(ad, campaignMap, recentSpendById, hashToUrl, videoThumbMap))
       .sort((a, b) => b.spend - a.spend);
 
     return NextResponse.json({ ads: processed }, { headers: { 'Cache-Control': 'no-store' } });
