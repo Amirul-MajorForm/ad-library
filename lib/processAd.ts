@@ -4,10 +4,11 @@ const CONVERSION_ACTION_TYPES = ['purchase', 'lead', 'complete_registration', 's
 const CPA_ACTION_TYPES = ['purchase', 'lead', 'complete_registration'];
 
 export function processAd(ad: MetaAd, campaignMap: Record<string, string>): ProcessedAd {
-  const insights = ad.insights?.data?.[0] ?? {};
+  const insights = ad.insightsRange?.data?.[0] ?? {};
+  const recentSpend = parseFloat(ad.insightsRecent?.data?.[0]?.spend || '0');
   const creative = ad.creative ?? {};
 
-  let thumbnail: string | null = creative.thumbnail_url || creative.image_url || null;
+  let thumbnail: string | null = creative.image_url || creative.thumbnail_url || null;
   if (!thumbnail && creative.object_story_spec) {
     thumbnail = creative.object_story_spec.link_data?.picture || null;
   }
@@ -55,10 +56,13 @@ export function processAd(ad: MetaAd, campaignMap: Record<string, string>): Proc
     if (cpa) costPerConversion = parseFloat(cpa.value || '0');
   }
 
+  const rawStatus = ad.effective_status || ad.status;
+  const status = rawStatus === 'ACTIVE' && recentSpend <= 0 ? 'INACTIVE' : rawStatus;
+
   return {
     id: ad.id,
     name: ad.name,
-    status: ad.effective_status || ad.status,
+    status,
     format,
     thumbnail,
     body,

@@ -16,7 +16,13 @@ export default function AdCard({
   onClick: () => void;
 }) {
   const statusClass =
-    ad.status === 'ACTIVE' ? 'status-active' : ad.status === 'PAUSED' ? 'status-paused' : 'status-other';
+    ad.status === 'ACTIVE'
+      ? 'status-active'
+      : ad.status === 'PAUSED'
+        ? 'status-paused'
+        : ad.status === 'INACTIVE'
+          ? 'status-inactive'
+          : 'status-other';
 
   return (
     <button type="button" className={`ad-card ${perfClass}`} onClick={onClick}>

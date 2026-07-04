@@ -6,7 +6,10 @@ import type { MetaAd } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 
 const ALLOWED_DAYS = new Set(['7', '14', '30']);
-const MAX_SUPPLEMENTARY_PAGES = 2; // 1 initial page + 2 more = 3 pages total, per brief
+const MAX_ADS = 200;
+const MAX_PAGES = 5; // safety cap on page fetches while walking toward MAX_ADS
+const MIN_CREATED_TIME = '2026-01-01'; // only pull ads created on/after this date
+const THUMBNAIL_SIZE = '600'; // request larger creative thumbnails than Meta's small default
 
 export async function GET(req: NextRequest) {
   const token = req.headers.get('x-meta-token')?.trim();
@@ -36,6 +39,7 @@ export async function GET(req: NextRequest) {
   }
 
   const effectiveStatus = status === 'ACTIVE' ? '["ACTIVE"]' : '["ACTIVE","PAUSED","ARCHIVED"]';
+  const filtering = JSON.stringify([{ field: 'created_time', operator: 'GREATER_THAN', value: MIN_CREATED_TIME }]);
 
   const fields = [
     'id',
@@ -47,7 +51,8 @@ export async function GET(req: NextRequest) {
     'creative{id,name,title,body,image_url,thumbnail_url,video_id,call_to_action_type,' +
       'object_story_spec{link_data{picture,message,name,child_attachments{link}},photo_data{caption}},' +
       'asset_feed_spec{videos{video_id}}}',
-    `insights.date_preset(last_${days}d){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,cost_per_action_type}`,
+    `insights.date_preset(last_${days}d).as(insightsRange){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,cost_per_action_type}`,
+    'insights.date_preset(yesterday).as(insightsRecent){spend}',
   ].join(',');
 
   try {
@@ -55,6 +60,9 @@ export async function GET(req: NextRequest) {
       fields,
       limit: '100',
       effective_status: effectiveStatus,
+      filtering,
+      thumbnail_width: THUMBNAIL_SIZE,
+      thumbnail_height: THUMBNAIL_SIZE,
       access_token: token,
     });
 
@@ -63,13 +71,15 @@ export async function GET(req: NextRequest) {
 
     let nextUrl = first.paging?.next;
     let pagesFetched = 0;
-    while (nextUrl && pagesFetched < MAX_SUPPLEMENTARY_PAGES) {
+    while (nextUrl && ads.length < MAX_ADS && pagesFetched < MAX_PAGES) {
       if (!nextUrl.startsWith(GRAPH_BASE) && !nextUrl.startsWith('https://graph.facebook.com/')) break;
       const next = await fetchGraph<{ data: MetaAd[]; paging?: { next?: string } }>(nextUrl);
       ads = ads.concat(next.data || []);
       nextUrl = next.paging?.next;
       pagesFetched++;
     }
+
+    ads = ads.slice(0, MAX_ADS);
 
     if (ads.length === 0) {
       return NextResponse.json({ ads: [] }, { headers: { 'Cache-Control': 'no-store' } });

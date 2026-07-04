@@ -68,7 +68,10 @@ export interface MetaAd {
   adset_id?: string;
   campaign_id?: string;
   creative?: MetaCreative;
-  insights?: {
+  insightsRange?: {
+    data?: MetaInsights[];
+  };
+  insightsRecent?: {
     data?: MetaInsights[];
   };
 }

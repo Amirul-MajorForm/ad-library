@@ -354,6 +354,7 @@ button, input, select {
 
 .status-active { background: var(--green-bg); color: var(--green); }
 .status-paused { background: var(--amber-bg); color: var(--amber); }
+.status-inactive { background: var(--surface); color: var(--text-tertiary); }
 .status-other { background: var(--surface); color: var(--text-tertiary); }
 
 .perf-bar-track { height: 3px; background: var(--border-light); position: relative; }

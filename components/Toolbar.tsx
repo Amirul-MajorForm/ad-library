@@ -6,6 +6,7 @@ const FILTERS: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'ACTIVE', label: 'Active' },
   { value: 'PAUSED', label: 'Paused' },
+  { value: 'INACTIVE', label: 'Inactive' },
 ];
 
 const SORTS: { value: SortKey; label: string }[] = [
