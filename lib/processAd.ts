@@ -9,8 +9,7 @@ export function processAd(ad: MetaAd, campaignMap: Record<string, string>): Proc
 
   let thumbnail: string | null = creative.thumbnail_url || creative.image_url || null;
   if (!thumbnail && creative.object_story_spec) {
-    const spec = creative.object_story_spec;
-    thumbnail = spec.link_data?.image_url || spec.photo_data?.images?.[0]?.url || null;
+    thumbnail = creative.object_story_spec.link_data?.picture || null;
   }
 
   let body = creative.body || '';

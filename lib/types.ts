@@ -22,14 +22,13 @@ export interface MetaInsights {
 }
 
 export interface MetaLinkData {
-  image_url?: string;
+  picture?: string;
   message?: string;
   name?: string;
   child_attachments?: unknown[];
 }
 
 export interface MetaPhotoData {
-  images?: { url?: string }[];
   caption?: string;
 }
 
