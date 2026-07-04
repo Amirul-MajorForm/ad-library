@@ -8,22 +8,22 @@ export function processAd(ad: MetaAd, campaignMap: Record<string, string>): Proc
   const creative = ad.creative ?? {};
 
   let thumbnail: string | null = creative.thumbnail_url || creative.image_url || null;
-  if (!thumbnail && creative.effective_object_story_spec) {
-    const spec = creative.effective_object_story_spec;
+  if (!thumbnail && creative.object_story_spec) {
+    const spec = creative.object_story_spec;
     thumbnail = spec.link_data?.image_url || spec.photo_data?.images?.[0]?.url || null;
   }
 
   let body = creative.body || '';
-  if (!body && creative.effective_object_story_spec) {
-    body = creative.effective_object_story_spec.link_data?.message || creative.effective_object_story_spec.photo_data?.caption || '';
+  if (!body && creative.object_story_spec) {
+    body = creative.object_story_spec.link_data?.message || creative.object_story_spec.photo_data?.caption || '';
   }
   if (!body && creative.snapshot?.cards?.[0]?.body) {
     body = creative.snapshot.cards[0].body;
   }
 
   let title = creative.title || '';
-  if (!title && creative.effective_object_story_spec) {
-    title = creative.effective_object_story_spec.link_data?.name || '';
+  if (!title && creative.object_story_spec) {
+    title = creative.object_story_spec.link_data?.name || '';
   }
   if (!title && creative.snapshot?.cards?.[0]?.title) {
     title = creative.snapshot.cards[0].title;

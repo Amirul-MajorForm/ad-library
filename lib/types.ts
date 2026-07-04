@@ -51,7 +51,6 @@ export interface MetaCreative {
   image_url?: string;
   thumbnail_url?: string;
   object_story_spec?: MetaObjectStorySpec;
-  effective_object_story_spec?: MetaObjectStorySpec;
   asset_feed_spec?: {
     videos?: unknown[];
   };
