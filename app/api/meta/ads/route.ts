@@ -44,7 +44,9 @@ export async function GET(req: NextRequest) {
     'effective_status',
     'adset_id',
     'campaign_id',
-    'creative{id,name,title,body,image_url,thumbnail_url,object_story_spec,asset_feed_spec,video_id,call_to_action_type}',
+    'creative{id,name,title,body,image_url,thumbnail_url,video_id,call_to_action_type,' +
+      'object_story_spec{link_data{image_url,message,name,child_attachments{link}},photo_data{images{url},caption}},' +
+      'asset_feed_spec{videos{video_id}}}',
     `insights.date_preset(last_${days}d){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,cost_per_action_type}`,
   ].join(',');
 
