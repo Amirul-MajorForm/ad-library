@@ -1,5 +1,6 @@
 'use client';
 
+import type { DateRangeDays } from '@/lib/types';
 import type { SortKey, StatusFilter } from '@/lib/uiTypes';
 
 const FILTERS: { value: StatusFilter; label: string }[] = [
@@ -17,6 +18,8 @@ const SORTS: { value: SortKey; label: string }[] = [
   { value: 'clicks_desc', label: 'Clicks: High to Low' },
 ];
 
+const DAYS_OPTIONS: DateRangeDays[] = [7, 14, 30];
+
 export default function Toolbar({
   search,
   onSearchChange,
@@ -24,6 +27,8 @@ export default function Toolbar({
   onFilterChange,
   sort,
   onSortChange,
+  days,
+  onDaysChange,
 }: {
   search: string;
   onSearchChange: (v: string) => void;
@@ -31,6 +36,8 @@ export default function Toolbar({
   onFilterChange: (v: StatusFilter) => void;
   sort: SortKey;
   onSortChange: (v: SortKey) => void;
+  days: DateRangeDays;
+  onDaysChange: (d: DateRangeDays) => void;
 }) {
   return (
     <div className="toolbar">
@@ -55,6 +62,17 @@ export default function Toolbar({
           ))}
         </div>
       </div>
+      <select
+        className="sort-select"
+        value={days}
+        onChange={(e) => onDaysChange(Number(e.target.value) as DateRangeDays)}
+      >
+        {DAYS_OPTIONS.map((d) => (
+          <option key={d} value={d}>
+            Last {d} days
+          </option>
+        ))}
+      </select>
       <select className="sort-select" value={sort} onChange={(e) => onSortChange(e.target.value as SortKey)}>
         {SORTS.map((s) => (
           <option key={s.value} value={s.value}>

@@ -79,8 +79,10 @@ export default function Home() {
     }
   }
 
-  async function startFetch() {
+  async function fetchAds(overrideDays?: DateRangeDays) {
     if (!token.trim() || !selectedAccountId) return;
+    const effectiveDays = overrideDays ?? days;
+    if (overrideDays !== undefined) setDays(overrideDays);
 
     setView('loading');
     setLoadingText(INITIAL_LOADING_TEXT);
@@ -89,9 +91,13 @@ export default function Home() {
 
     try {
       setLoadingText('Pulling ads and insights...');
-      setLoadingSub(`Fetching ${days}-day window`);
+      setLoadingSub(`Fetching ${effectiveDays}-day window`);
 
-      const params = new URLSearchParams({ accountId: selectedAccountId, days: String(days), status });
+      const params = new URLSearchParams({
+        accountId: selectedAccountId,
+        days: String(effectiveDays),
+        status,
+      });
       const resp = await fetch(`/api/meta/ads?${params.toString()}`, {
         headers: { 'x-meta-token': token.trim() },
       });
@@ -108,9 +114,11 @@ export default function Home() {
 
       const ads: ProcessedAd[] = data.ads || [];
       setAllAds(ads);
-      setSearch('');
-      setFilter('all');
-      setSort('spend_desc');
+      if (overrideDays === undefined) {
+        setSearch('');
+        setFilter('all');
+        setSort('spend_desc');
+      }
       setView('results');
     } catch (e) {
       setLoadError({
@@ -163,7 +171,7 @@ export default function Home() {
           onDaysChange={setDays}
           status={status}
           onStatusChange={setStatus}
-          onSubmit={startFetch}
+          onSubmit={() => fetchAds()}
         />
       ) : (
         <div>
@@ -180,6 +188,8 @@ export default function Home() {
                 onFilterChange={setFilter}
                 sort={sort}
                 onSortChange={setSort}
+                days={days}
+                onDaysChange={(d) => fetchAds(d)}
               />
               <SummaryBar ads={allAds} days={days} />
               <div className="cards-container">

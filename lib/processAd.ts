@@ -3,12 +3,19 @@ import type { AdFormat, MetaAd, ProcessedAd } from './types';
 const CONVERSION_ACTION_TYPES = ['purchase', 'lead', 'complete_registration', 'submit_application'];
 const CPA_ACTION_TYPES = ['purchase', 'lead', 'complete_registration'];
 
-export function processAd(ad: MetaAd, campaignMap: Record<string, string>): ProcessedAd {
-  const insights = ad.insightsRange?.data?.[0] ?? {};
-  const recentSpend = parseFloat(ad.insightsRecent?.data?.[0]?.spend || '0');
+export function processAd(
+  ad: MetaAd,
+  campaignMap: Record<string, string>,
+  recentSpendById: Record<string, number>,
+  hashToUrl: Record<string, string>,
+): ProcessedAd {
+  const insights = ad.insights?.data?.[0] ?? {};
+  const recentSpend = recentSpendById[ad.id] ?? 0;
   const creative = ad.creative ?? {};
 
-  let thumbnail: string | null = creative.image_url || creative.thumbnail_url || null;
+  const imageHash = creative.image_hash || creative.object_story_spec?.link_data?.image_hash;
+  let thumbnail: string | null =
+    (imageHash && hashToUrl[imageHash]) || creative.image_url || creative.thumbnail_url || null;
   if (!thumbnail && creative.object_story_spec) {
     thumbnail = creative.object_story_spec.link_data?.picture || null;
   }

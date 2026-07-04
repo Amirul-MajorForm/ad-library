@@ -9,7 +9,14 @@ const ALLOWED_DAYS = new Set(['7', '14', '30']);
 const MAX_ADS = 200;
 const MAX_PAGES = 5; // safety cap on page fetches while walking toward MAX_ADS
 const MIN_CREATED_TIME = '2026-01-01'; // only pull ads created on/after this date
-const THUMBNAIL_SIZE = '600'; // request larger creative thumbnails than Meta's small default
+const THUMBNAIL_SIZE = '1080'; // request larger creative thumbnails than Meta's small default
+const BATCH_SIZE = 50; // chunk size for campaign/insights/image-hash batch lookups
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
 
 export async function GET(req: NextRequest) {
   const token = req.headers.get('x-meta-token')?.trim();
@@ -48,11 +55,10 @@ export async function GET(req: NextRequest) {
     'effective_status',
     'adset_id',
     'campaign_id',
-    'creative{id,name,title,body,image_url,thumbnail_url,video_id,call_to_action_type,' +
-      'object_story_spec{link_data{picture,message,name,child_attachments{link}},photo_data{caption}},' +
+    'creative{id,name,title,body,image_url,thumbnail_url,image_hash,video_id,call_to_action_type,' +
+      'object_story_spec{link_data{picture,image_hash,message,name,child_attachments{link}},photo_data{caption}},' +
       'asset_feed_spec{videos{video_id}}}',
-    `insights.date_preset(last_${days}d).as(insightsRange){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,cost_per_action_type}`,
-    'insights.date_preset(yesterday).as(insightsRecent){spend}',
+    `insights.date_preset(last_${days}d){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,cost_per_action_type}`,
   ].join(',');
 
   try {
@@ -85,23 +91,77 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ads: [] }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
+    // Campaign name enrichment (best-effort)
     const campaignIds = [...new Set(ads.map((a) => a.campaign_id).filter((id): id is string => Boolean(id)))];
     let campaignMap: Record<string, string> = {};
     if (campaignIds.length) {
       try {
         const batchUrl = buildUrl('/', {
-          ids: campaignIds.slice(0, 50).join(','),
+          ids: campaignIds.slice(0, BATCH_SIZE).join(','),
           fields: 'id,name',
           access_token: token,
         });
         const batchData = await fetchGraph<Record<string, { id: string; name: string }>>(batchUrl);
         campaignMap = Object.fromEntries(Object.entries(batchData).map(([id, obj]) => [id, obj.name]));
       } catch {
-        // Campaign name enrichment is best-effort; ads still render with a fallback name.
+        // best-effort; ads still render with a fallback name
       }
     }
 
-    const processed = ads.map((ad) => processAd(ad, campaignMap)).sort((a, b) => b.spend - a.spend);
+    // "Inactive" detection: ads Meta reports ACTIVE but with zero spend yesterday.
+    // Done as its own dedicated insights query (rather than a second aliased
+    // insights block on /ads, which Meta silently drops) filtered to this ad set.
+    const recentSpendById: Record<string, number> = {};
+    const adIds = ads.map((a) => a.id);
+    for (const idBatch of chunk(adIds, BATCH_SIZE)) {
+      try {
+        const recentUrl = buildUrl(`/${accountId}/insights`, {
+          level: 'ad',
+          date_preset: 'yesterday',
+          fields: 'ad_id,spend',
+          filtering: JSON.stringify([{ field: 'ad.id', operator: 'IN', value: idBatch }]),
+          limit: String(BATCH_SIZE),
+          access_token: token,
+        });
+        const recentData = await fetchGraph<{ data: { ad_id: string; spend?: string }[] }>(recentUrl);
+        for (const row of recentData.data || []) {
+          recentSpendById[row.ad_id] = parseFloat(row.spend || '0');
+        }
+      } catch {
+        // best-effort; ads default to their Meta-reported status if this fails
+      }
+    }
+
+    // High-res thumbnails: resolve image_hash -> original uploaded image URL
+    // via the adimages library, since image_url/thumbnail_url are often
+    // scaled-down placement renders rather than the source asset.
+    const hashes = [
+      ...new Set(
+        ads
+          .map((a) => a.creative?.image_hash || a.creative?.object_story_spec?.link_data?.image_hash)
+          .filter((h): h is string => Boolean(h)),
+      ),
+    ];
+    const hashToUrl: Record<string, string> = {};
+    for (const hashBatch of chunk(hashes, BATCH_SIZE)) {
+      try {
+        const imagesUrl = buildUrl(`/${accountId}/adimages`, {
+          hashes: JSON.stringify(hashBatch),
+          fields: 'hash,url',
+          access_token: token,
+        });
+        const imagesData = await fetchGraph<{ data: { hash: string; url?: string }[] }>(imagesUrl);
+        for (const row of imagesData.data || []) {
+          if (row.url) hashToUrl[row.hash] = row.url;
+        }
+      } catch {
+        // best-effort; falls back to image_url/thumbnail_url
+      }
+    }
+
+    const processed = ads
+      .map((ad) => processAd(ad, campaignMap, recentSpendById, hashToUrl))
+      .sort((a, b) => b.spend - a.spend);
 
     return NextResponse.json({ ads: processed }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {

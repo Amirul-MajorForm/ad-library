@@ -23,6 +23,7 @@ export interface MetaInsights {
 
 export interface MetaLinkData {
   picture?: string;
+  image_hash?: string;
   message?: string;
   name?: string;
   child_attachments?: unknown[];
@@ -49,6 +50,7 @@ export interface MetaCreative {
   body?: string;
   image_url?: string;
   thumbnail_url?: string;
+  image_hash?: string;
   object_story_spec?: MetaObjectStorySpec;
   asset_feed_spec?: {
     videos?: unknown[];
@@ -68,10 +70,7 @@ export interface MetaAd {
   adset_id?: string;
   campaign_id?: string;
   creative?: MetaCreative;
-  insightsRange?: {
-    data?: MetaInsights[];
-  };
-  insightsRecent?: {
+  insights?: {
     data?: MetaInsights[];
   };
 }
