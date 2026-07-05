@@ -499,9 +499,14 @@ button, input, select {
   color: var(--text-tertiary);
   margin-bottom: 12px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  cursor: default;
 }
+
+.card-campaign::-webkit-scrollbar { height: 3px; }
+.card-campaign::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.card-campaign::-webkit-scrollbar-track { background: transparent; }
 
 .card-metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 

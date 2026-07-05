@@ -120,6 +120,9 @@ export default function Home() {
       }
 
       const ads: ProcessedAd[] = data.ads || [];
+      if (Array.isArray(data.warnings) && data.warnings.length) {
+        console.warn('[live-ads] non-fatal issues while enriching ads:', data.warnings);
+      }
       setAllAds(ads);
       if (overrideDays === undefined) {
         setSearch('');

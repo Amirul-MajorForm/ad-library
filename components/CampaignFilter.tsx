@@ -39,6 +39,10 @@ export default function CampaignFilter({
     onChange(next.size === campaigns.length ? null : next);
   }
 
+  function toggleAll() {
+    onChange(isAll ? new Set() : null);
+  }
+
   return (
     <div className="campaign-filter" ref={ref}>
       <button type="button" className="campaign-filter-btn" onClick={() => setOpen((o) => !o)}>
@@ -47,7 +51,7 @@ export default function CampaignFilter({
       </button>
       {open ? (
         <div className="campaign-filter-panel">
-          <button type="button" className="campaign-filter-item campaign-filter-all" onClick={() => onChange(null)}>
+          <button type="button" className="campaign-filter-item campaign-filter-all" onClick={toggleAll}>
             <span className={`campaign-filter-check${isAll ? ' checked' : ''}`} />
             All Campaigns
           </button>

@@ -88,6 +88,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ads: [] }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
+    const warnings: string[] = [];
+
     // Drop ads with zero spend in the trailing 90 days, regardless of creation
     // date, so stale/dormant ads never show up. Fails open: if the lookup
     // itself errors for a batch, those ads are kept rather than silently
@@ -213,11 +215,18 @@ export async function GET(req: NextRequest) {
           if (candidates.length) {
             const best = candidates.reduce((a, b) => ((b.width || 0) > (a.width || 0) ? b : a));
             if (best.uri) videoThumbMap[id] = best.uri;
+          } else {
+            warnings.push(`video ${id}: no thumbnails returned`);
           }
-          if (obj.source) videoSrcMap[id] = obj.source;
+          if (obj.source) {
+            videoSrcMap[id] = obj.source;
+          } else {
+            warnings.push(`video ${id}: no source field returned`);
+          }
         }
-      } catch {
-        // best-effort; falls back to creative.thumbnail_url, no playback
+      } catch (err) {
+        const detail = err instanceof MetaApiRequestError ? `${err.message} (code ${err.fbError?.code})` : String(err);
+        warnings.push(`video batch lookup failed: ${detail}`);
       }
     }
 
@@ -225,7 +234,10 @@ export async function GET(req: NextRequest) {
       .map((ad) => processAd(ad, campaignMap, recentSpendById, hashToUrl, videoThumbMap, videoSrcMap))
       .sort((a, b) => b.spend - a.spend);
 
-    return NextResponse.json({ ads: processed }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json(
+      { ads: processed, warnings: warnings.length ? warnings : undefined },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
   } catch (err) {
     if (err instanceof MetaApiRequestError) {
       return NextResponse.json(
