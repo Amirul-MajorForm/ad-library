@@ -40,12 +40,19 @@ export default function Home() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [sort, setSort] = useState<SortKey>('spend_desc');
+  const [selectedCampaigns, setSelectedCampaigns] = useState<Set<string> | null>(null);
   const [selectedAd, setSelectedAd] = useState<ProcessedAd | null>(null);
+
+  const campaignNames = useMemo(
+    () => [...new Set(allAds.map((a) => a.campaignName))].sort((a, b) => a.localeCompare(b)),
+    [allAds],
+  );
 
   const filteredAds = useMemo(() => {
     const q = search.trim().toLowerCase();
     let ads = [...allAds];
     if (filter !== 'all') ads = ads.filter((a) => a.status === filter);
+    if (selectedCampaigns !== null) ads = ads.filter((a) => selectedCampaigns.has(a.campaignName));
     if (q) {
       ads = ads.filter(
         (a) =>
@@ -57,7 +64,7 @@ export default function Home() {
     const { key, dir } = SORT_FIELDS[sort];
     ads.sort((a, b) => (dir === 'desc' ? b[key] - a[key] : a[key] - b[key]));
     return ads;
-  }, [allAds, search, filter, sort]);
+  }, [allAds, search, filter, selectedCampaigns, sort]);
 
   async function loadAccounts() {
     setAccountsLoading(true);
@@ -118,6 +125,7 @@ export default function Home() {
         setSearch('');
         setFilter('all');
         setSort('spend_desc');
+        setSelectedCampaigns(null);
       }
       setView('results');
     } catch (e) {
@@ -139,6 +147,7 @@ export default function Home() {
     setSearch('');
     setFilter('all');
     setSort('spend_desc');
+    setSelectedCampaigns(null);
     setSelectedAd(null);
   }
 
@@ -190,6 +199,9 @@ export default function Home() {
                 onSortChange={setSort}
                 days={days}
                 onDaysChange={(d) => fetchAds(d)}
+                campaigns={campaignNames}
+                selectedCampaigns={selectedCampaigns}
+                onCampaignsChange={setSelectedCampaigns}
               />
               <SummaryBar ads={allAds} days={days} />
               <div className="cards-container">

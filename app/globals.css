@@ -24,7 +24,7 @@ html, body {
 }
 
 body {
-  font-family: var(--font-manrope), 'Manrope', sans-serif;
+  font-family: var(--font-space-grotesk), 'Space Grotesk', sans-serif;
   background: var(--bg);
   color: var(--text-primary);
   min-height: 100vh;
@@ -35,6 +35,20 @@ body {
 
 button, input, select {
   font-family: inherit;
+}
+
+.wordmark,
+.tool-name,
+.setup-eyebrow,
+.setup-title,
+.modal-title,
+.modal-sub,
+.detail-section-title,
+.card-ad-name,
+.empty-title,
+.error-title,
+.loading-text {
+  font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
 }
 
 /* HEADER */
@@ -266,6 +280,100 @@ button, input, select {
   background: var(--bg);
   outline: none;
   cursor: pointer;
+}
+
+.campaign-filter { position: relative; }
+
+.campaign-filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg);
+  cursor: pointer;
+  transition: all 0.15s;
+  max-width: 200px;
+}
+
+.campaign-filter-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+
+.campaign-filter-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.campaign-filter-caret { font-size: 9px; color: var(--text-tertiary); flex-shrink: 0; }
+
+.campaign-filter-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  min-width: 240px;
+  max-width: 320px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  padding: 6px;
+}
+
+.campaign-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.campaign-filter-item:hover { background: var(--surface); }
+
+.campaign-filter-all { font-weight: 600; }
+
+.campaign-filter-sep { height: 1px; background: var(--border-light); margin: 4px 2px; }
+
+.campaign-filter-check {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  position: relative;
+}
+
+.campaign-filter-check.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.campaign-filter-check.checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 .summary-bar {

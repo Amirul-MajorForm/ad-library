@@ -191,33 +191,38 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // High-res video thumbnails: Meta's video object exposes a range of
-    // generated thumbnails at different resolutions; pick the largest instead
-    // of the small default thumbnail_url.
+    // High-res video thumbnails + playable source: Meta's video object exposes
+    // a range of generated thumbnails at different resolutions (pick the
+    // largest instead of the small default thumbnail_url) and a direct
+    // `source` URL for actual playback in the detail modal.
     const videoIds = [...new Set(ads.map((a) => a.creative?.video_id).filter((v): v is string => Boolean(v)))];
     const videoThumbMap: Record<string, string> = {};
+    const videoSrcMap: Record<string, string> = {};
     for (const videoBatch of chunk(videoIds, BATCH_SIZE)) {
       try {
         const videosUrl = buildUrl('/', {
           ids: videoBatch.join(','),
-          fields: 'thumbnails{uri,width}',
+          fields: 'thumbnails{uri,width},source',
           access_token: token,
         });
-        const videosData =
-          await fetchGraph<Record<string, { thumbnails?: { data?: { uri: string; width?: number }[] } }>>(videosUrl);
+        const videosData = await fetchGraph<
+          Record<string, { thumbnails?: { data?: { uri: string; width?: number }[] }; source?: string }>
+        >(videosUrl);
         for (const [id, obj] of Object.entries(videosData)) {
           const candidates = obj.thumbnails?.data || [];
-          if (!candidates.length) continue;
-          const best = candidates.reduce((a, b) => ((b.width || 0) > (a.width || 0) ? b : a));
-          if (best.uri) videoThumbMap[id] = best.uri;
+          if (candidates.length) {
+            const best = candidates.reduce((a, b) => ((b.width || 0) > (a.width || 0) ? b : a));
+            if (best.uri) videoThumbMap[id] = best.uri;
+          }
+          if (obj.source) videoSrcMap[id] = obj.source;
         }
       } catch {
-        // best-effort; falls back to creative.thumbnail_url
+        // best-effort; falls back to creative.thumbnail_url, no playback
       }
     }
 
     const processed = ads
-      .map((ad) => processAd(ad, campaignMap, recentSpendById, hashToUrl, videoThumbMap))
+      .map((ad) => processAd(ad, campaignMap, recentSpendById, hashToUrl, videoThumbMap, videoSrcMap))
       .sort((a, b) => b.spend - a.spend);
 
     return NextResponse.json({ ads: processed }, { headers: { 'Cache-Control': 'no-store' } });

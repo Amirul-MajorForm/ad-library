@@ -2,6 +2,7 @@
 
 import type { DateRangeDays } from '@/lib/types';
 import type { SortKey, StatusFilter } from '@/lib/uiTypes';
+import CampaignFilter from './CampaignFilter';
 
 const FILTERS: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -29,6 +30,9 @@ export default function Toolbar({
   onSortChange,
   days,
   onDaysChange,
+  campaigns,
+  selectedCampaigns,
+  onCampaignsChange,
 }: {
   search: string;
   onSearchChange: (v: string) => void;
@@ -38,6 +42,9 @@ export default function Toolbar({
   onSortChange: (v: SortKey) => void;
   days: DateRangeDays;
   onDaysChange: (d: DateRangeDays) => void;
+  campaigns: string[];
+  selectedCampaigns: Set<string> | null;
+  onCampaignsChange: (next: Set<string> | null) => void;
 }) {
   return (
     <div className="toolbar">
@@ -61,6 +68,7 @@ export default function Toolbar({
             </button>
           ))}
         </div>
+        <CampaignFilter campaigns={campaigns} selected={selectedCampaigns} onChange={onCampaignsChange} />
       </div>
       <select
         className="sort-select"

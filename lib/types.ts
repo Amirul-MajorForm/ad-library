@@ -91,6 +91,7 @@ export interface ProcessedAd {
   status: string;
   format: AdFormat;
   thumbnail: string | null;
+  videoSrc: string | null;
   body: string;
   title: string;
   cta: string;

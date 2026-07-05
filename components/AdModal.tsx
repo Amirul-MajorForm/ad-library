@@ -21,7 +21,17 @@ export default function AdModal({ ad, days, onClose }: { ad: ProcessedAd | null;
           <div className="modal-body">
             <div>
               <div className="modal-creative">
-                <CreativeThumbnail src={ad.thumbnail} alt={ad.name} />
+                {ad.videoSrc ? (
+                  // eslint-disable-next-line jsx-a11y/media-has-caption
+                  <video
+                    src={ad.videoSrc}
+                    poster={ad.thumbnail || undefined}
+                    controls
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  />
+                ) : (
+                  <CreativeThumbnail src={ad.thumbnail} alt={ad.name} />
+                )}
               </div>
             </div>
             <div className="modal-details">

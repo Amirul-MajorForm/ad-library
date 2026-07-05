@@ -9,6 +9,7 @@ export function processAd(
   recentSpendById: Record<string, number>,
   hashToUrl: Record<string, string>,
   videoThumbMap: Record<string, string>,
+  videoSrcMap: Record<string, string>,
 ): ProcessedAd {
   const insights = ad.insights?.data?.[0] ?? {};
   const recentSpend = recentSpendById[ad.id] ?? 0;
@@ -43,6 +44,8 @@ export function processAd(
   if (!title && creative.snapshot?.cards?.[0]?.title) {
     title = creative.snapshot.cards[0].title;
   }
+
+  const videoSrc = (creative.video_id && videoSrcMap[creative.video_id]) || null;
 
   let format: AdFormat = 'Image';
   if (creative.video_id) format = 'Video';
@@ -80,6 +83,7 @@ export function processAd(
     status,
     format,
     thumbnail,
+    videoSrc,
     body,
     title,
     cta: creative.call_to_action_type || '',
