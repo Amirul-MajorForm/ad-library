@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { buildUrl, fetchGraph, MetaApiRequestError, GRAPH_BASE } from '@/lib/metaClient';
 import { processAd } from '@/lib/processAd';
+import { getCachedAnalysis, saveAnalysis } from '@/lib/db';
+import { runCreativeAnalysis } from '@/lib/roast';
+import { mapWithConcurrency } from '@/lib/concurrency';
+import { MAX_ANALYZED_ADS } from '@/lib/constants';
 import type { MetaAd } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -10,6 +14,7 @@ const MAX_ADS = 200;
 const MAX_PAGES = 5; // safety cap on page fetches while walking toward MAX_ADS
 const THUMBNAIL_SIZE = '1080'; // request larger creative thumbnails than Meta's small default
 const BATCH_SIZE = 50; // chunk size for campaign/insights/image-hash/video batch lookups
+const ANALYSIS_CONCURRENCY = 5;
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -233,6 +238,37 @@ export async function GET(req: NextRequest) {
     const processed = ads
       .map((ad) => processAd(ad, campaignMap, recentSpendById, hashToUrl, videoThumbMap, videoSrcMap))
       .sort((a, b) => b.spend - a.spend);
+
+    // Creative analysis (ROAST scoring + categorization), capped to the top N
+    // ads by spend for cost/latency control. Cached by creativeKey so the
+    // same underlying creative is never re-billed across pulls or ads.
+    const toAnalyze = processed.slice(0, MAX_ANALYZED_ADS).filter((ad) => ad.thumbnail);
+    await mapWithConcurrency(toAnalyze, ANALYSIS_CONCURRENCY, async (ad) => {
+      try {
+        const cached = await getCachedAnalysis(ad.creativeKey);
+        if (cached) {
+          ad.roast = cached.roast;
+          ad.categorization = cached.categorization;
+          return;
+        }
+        if (!ad.thumbnail) return;
+        const result = await runCreativeAnalysis({
+          imageUrl: ad.thumbnail,
+          format: ad.format,
+          title: ad.title,
+          body: ad.body,
+        });
+        if (result) {
+          ad.roast = result.roast;
+          ad.categorization = result.categorization;
+          await saveAnalysis(ad.creativeKey, result.roast, result.categorization);
+        } else {
+          warnings.push(`creative analysis unavailable for ad ${ad.id}`);
+        }
+      } catch (err) {
+        warnings.push(`creative analysis failed for ad ${ad.id}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    });
 
     return NextResponse.json(
       { ads: processed, warnings: warnings.length ? warnings : undefined },

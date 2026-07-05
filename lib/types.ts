@@ -1,3 +1,5 @@
+import type { RoastResult, Categorization } from './roastTypes';
+
 export interface MetaAdAccount {
   id: string;
   name: string;
@@ -107,6 +109,9 @@ export interface ProcessedAd {
   frequency: number;
   conversions: number;
   costPerConversion: number;
+  creativeKey: string;
+  roast: RoastResult | null;
+  categorization: Categorization | null;
 }
 
 export type AdStatusFilter = 'ACTIVE' | 'ALL';

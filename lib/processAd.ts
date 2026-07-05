@@ -77,6 +77,11 @@ export function processAd(
   const rawStatus = ad.effective_status || ad.status;
   const status = rawStatus === 'ACTIVE' && recentSpend <= 0 ? 'INACTIVE' : rawStatus;
 
+  // Stable identity for the underlying creative asset (not the ad wrapper),
+  // so the same creative reused across ads/campaigns is only ever analyzed
+  // and billed once.
+  const creativeKey = imageHash || creative.video_id || `ad:${ad.id}`;
+
   return {
     id: ad.id,
     name: ad.name,
@@ -99,5 +104,8 @@ export function processAd(
     frequency,
     conversions,
     costPerConversion,
+    creativeKey,
+    roast: null,
+    categorization: null,
   };
 }

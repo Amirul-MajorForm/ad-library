@@ -24,12 +24,24 @@ export default function AdCard({
           ? 'status-inactive'
           : 'status-other';
 
+  const roastClass =
+    ad.roast == null
+      ? null
+      : ad.roast.roast_score >= 8
+        ? 'roast-strong'
+        : ad.roast.roast_score >= 5
+          ? 'roast-attention'
+          : 'roast-critical';
+
   return (
     <button type="button" className={`ad-card ${perfClass}`} onClick={onClick}>
       <div className="card-creative">
         <CreativeThumbnail src={ad.thumbnail} alt={ad.name} />
         <span className="card-format-badge">{ad.format}</span>
         <span className={`card-status-badge ${statusClass}`}>{ad.status}</span>
+        {roastClass ? (
+          <span className={`card-roast-badge ${roastClass}`}>ROAST {ad.roast!.roast_score.toFixed(1)}</span>
+        ) : null}
       </div>
       <div className="perf-bar-track">
         <div className="perf-bar-fill" style={{ width: `${barPct.toFixed(1)}%` }} />
@@ -37,6 +49,12 @@ export default function AdCard({
       <div className="card-body">
         <div className="card-ad-name">{ad.name}</div>
         <div className="card-campaign">{ad.campaignName}</div>
+        {ad.categorization ? (
+          <div className="card-tags">
+            <span className="card-tag">{ad.categorization.creative_type}</span>
+            <span className="card-tag">{ad.categorization.messaging_angle}</span>
+          </div>
+        ) : null}
         <div className="card-metrics">
           <div className="metric-cell">
             <div className="metric-val">{formatCurrency(ad.spend)}</div>

@@ -4,9 +4,12 @@ import { useMemo, useState } from 'react';
 import type { AdStatusFilter, DateRangeDays, MetaAdAccount, ProcessedAd } from '@/lib/types';
 import type { SortKey, StatusFilter } from '@/lib/uiTypes';
 import { SORT_FIELDS } from '@/lib/uiTypes';
+import { RANK_METRICS, RANK_LIMIT } from '@/lib/ranking';
+import type { RankMetric, RankMode } from '@/lib/ranking';
 import SetupPanel from '@/components/SetupPanel';
 import Toolbar from '@/components/Toolbar';
 import SummaryBar from '@/components/SummaryBar';
+import Sidebar from '@/components/Sidebar';
 import CardsGrid from '@/components/CardsGrid';
 import AdModal from '@/components/AdModal';
 import LoadingState from '@/components/LoadingState';
@@ -42,6 +45,8 @@ export default function Home() {
   const [sort, setSort] = useState<SortKey>('spend_desc');
   const [selectedCampaigns, setSelectedCampaigns] = useState<Set<string> | null>(null);
   const [selectedAd, setSelectedAd] = useState<ProcessedAd | null>(null);
+  const [rankMode, setRankMode] = useState<RankMode>(null);
+  const [rankMetric, setRankMetric] = useState<RankMetric>('ctr');
 
   const campaignNames = useMemo(
     () => [...new Set(allAds.map((a) => a.campaignName))].sort((a, b) => a.localeCompare(b)),
@@ -65,6 +70,15 @@ export default function Home() {
     ads.sort((a, b) => (dir === 'desc' ? b[key] - a[key] : a[key] - b[key]));
     return ads;
   }, [allAds, search, filter, selectedCampaigns, sort]);
+
+  const rankedAds = useMemo(() => {
+    if (!rankMode) return [];
+    const metricInfo = RANK_METRICS.find((m) => m.value === rankMetric)!;
+    let ads = filteredAds.filter((a) => a[rankMetric] > 0);
+    const wantDesc = rankMode === 'top' ? metricInfo.higherIsBetter : !metricInfo.higherIsBetter;
+    ads = [...ads].sort((a, b) => (wantDesc ? b[rankMetric] - a[rankMetric] : a[rankMetric] - b[rankMetric]));
+    return ads.slice(0, RANK_LIMIT);
+  }, [filteredAds, rankMode, rankMetric]);
 
   async function loadAccounts() {
     setAccountsLoading(true);
@@ -192,23 +206,37 @@ export default function Home() {
             <ErrorState message={loadError?.message || ''} code={loadError?.code} onRetry={resetTool} />
           ) : null}
           {view === 'results' ? (
-            <div>
-              <Toolbar
-                search={search}
-                onSearchChange={setSearch}
-                filter={filter}
-                onFilterChange={setFilter}
-                sort={sort}
-                onSortChange={setSort}
-                days={days}
-                onDaysChange={(d) => fetchAds(d)}
-                campaigns={campaignNames}
-                selectedCampaigns={selectedCampaigns}
-                onCampaignsChange={setSelectedCampaigns}
+            <div className="dashboard-layout">
+              <Sidebar
+                rankMode={rankMode}
+                onRankModeChange={setRankMode}
+                rankMetric={rankMetric}
+                onRankMetricChange={setRankMetric}
               />
-              <SummaryBar ads={allAds} days={days} />
-              <div className="cards-container">
-                <CardsGrid ads={filteredAds} onSelect={setSelectedAd} />
+              <div className="dashboard-main">
+                <Toolbar
+                  search={search}
+                  onSearchChange={setSearch}
+                  filter={filter}
+                  onFilterChange={setFilter}
+                  sort={sort}
+                  onSortChange={setSort}
+                  days={days}
+                  onDaysChange={(d) => fetchAds(d)}
+                  campaigns={campaignNames}
+                  selectedCampaigns={selectedCampaigns}
+                  onCampaignsChange={setSelectedCampaigns}
+                />
+                <SummaryBar ads={allAds} days={days} />
+                <div className="cards-container">
+                  {rankMode ? (
+                    <div className="rank-heading">
+                      {rankMode === 'top' ? 'Top' : 'Worst'} {rankedAds.length} Performing Creatives — Ranked by{' '}
+                      {RANK_METRICS.find((m) => m.value === rankMetric)?.label}
+                    </div>
+                  ) : null}
+                  <CardsGrid ads={rankMode ? rankedAds : filteredAds} onSelect={setSelectedAd} />
+                </div>
               </div>
             </div>
           ) : null}
